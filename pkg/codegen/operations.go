@@ -259,8 +259,8 @@ func (o *OperationDefinition) SummaryAsComment() string {
 // types which we know how to parse. These will be turned into fields on a
 // response object for automatic deserialization of responses in the generated
 // Client code. See "client-with-responses.tmpl".
-func (o *OperationDefinition) GetResponseTypeDefinitions() ([]TypeDefinition, error) {
-	var tds []TypeDefinition
+func (o *OperationDefinition) GetResponseTypeDefinitions() ([]ResponseTypeDefinition, error) {
+	var tds []ResponseTypeDefinition
 
 	responses := o.Spec.Responses
 	sortedResponsesKeys := SortedResponsesKeys(responses)
@@ -293,10 +293,13 @@ func (o *OperationDefinition) GetResponseTypeDefinitions() ([]TypeDefinition, er
 						continue
 					}
 
-					td := TypeDefinition{
-						TypeName:     typeName,
-						Schema:       responseSchema,
-						ResponseName: responseName,
+					td := ResponseTypeDefinition{
+						TypeDefinition: TypeDefinition{
+							TypeName: typeName,
+							Schema:   responseSchema,
+						},
+						ResponseName:    responseName,
+						ContentTypeName: contentTypeName,
 					}
 					if IsGoTypeReference(contentType.Schema.Ref) {
 						refType, err := RefPathToGoType(contentType.Schema.Ref)
@@ -372,7 +375,7 @@ func FilterParameterDefinitionByType(params []ParameterDefinition, in string) []
 }
 
 // OperationDefinitions returns all operations for a swagger definition.
-func OperationDefinitions(swagger *openapi3.Swagger) ([]OperationDefinition, error) {
+func OperationDefinitions(swagger *openapi3.T) ([]OperationDefinition, error) {
 	var operations []OperationDefinition
 
 	for _, requestPath := range SortedPathsKeys(swagger.Paths) {
@@ -389,6 +392,9 @@ func OperationDefinitions(swagger *openapi3.Swagger) ([]OperationDefinition, err
 		pathOps := pathItem.Operations()
 		for _, opName := range SortedOperationsKeys(pathOps) {
 			op := pathOps[opName]
+			if pathItem.Servers != nil {
+				op.Servers = &pathItem.Servers
+			}
 			// We rely on OperationID to generate function names, it's required
 			if op.OperationID == "" {
 				op.OperationID, err = generateDefaultOperationID(opName, requestPath)
@@ -593,14 +599,16 @@ func GenerateParamsTypes(op OperationDefinition) []TypeDefinition {
 			})
 		}
 		prop := Property{
-			Description:   param.Spec.Description,
-			JsonFieldName: param.ParamName,
-			Required:      param.Required,
-			Schema:        pSchema,
+			Description:    param.Spec.Description,
+			JsonFieldName:  param.ParamName,
+			Required:       param.Required,
+			Schema:         pSchema,
+			ExtensionProps: &param.Spec.ExtensionProps,
 		}
 		s.Properties = append(s.Properties, prop)
 	}
 
+	s.Description = op.Spec.Description
 	s.GoType = GenStructFromSchema(s)
 
 	td := TypeDefinition{

@@ -185,7 +185,7 @@ func SortedRequestBodyKeys(dict map[string]*openapi3.RequestBodyRef) []string {
 
 func SortedSecurityRequirementKeys(sr openapi3.SecurityRequirement) []string {
 	keys := make([]string, len(sr))
-	i := 0;
+	i := 0
 	for key := range sr {
 		keys[i] = key
 		i++
@@ -489,7 +489,6 @@ func SanitizeEnumNames(enumNames []string) map[string]string {
 		if _, dup := dupCheck[n]; !dup {
 			deDup = append(deDup, n)
 		}
-
 		dupCheck[n] = 0
 	}
 
@@ -497,14 +496,14 @@ func SanitizeEnumNames(enumNames []string) map[string]string {
 	sanitizedDeDup := make(map[string]string, len(deDup))
 
 	for _, n := range deDup {
-		sanitized := SanitizeGoIdentity(n)
+		sanitized := SchemaNameToTypeName(SanitizeGoIdentity(n))
 
 		if _, dup := dupCheck[sanitized]; !dup {
 			sanitizedDeDup[sanitized] = n
-			dupCheck[sanitized]++
 		} else {
 			sanitizedDeDup[sanitized+strconv.Itoa(dupCheck[sanitized])] = n
 		}
+		dupCheck[sanitized]++
 	}
 
 	return sanitizedDeDup
@@ -513,10 +512,14 @@ func SanitizeEnumNames(enumNames []string) map[string]string {
 // Converts a Schema name to a valid Go type name. It converts to camel case, and makes sure the name is
 // valid in Go
 func SchemaNameToTypeName(name string) string {
-	name = ToCamelCase(name)
-	// Prepend "N" to schemas starting with a number
-	if name != "" && unicode.IsDigit([]rune(name)[0]) {
-		name = "N" + name
+	if name == "$" {
+		name = "DollarSign"
+	} else {
+		name = ToCamelCase(name)
+		// Prepend "N" to schemas starting with a number
+		if name != "" && unicode.IsDigit([]rune(name)[0]) {
+			name = "N" + name
+		}
 	}
 	return name
 }
@@ -550,6 +553,10 @@ func PathToTypeName(path []string) string {
 // StringToGoComment renders a possible multi-line string as a valid Go-Comment.
 // Each line is prefixed as a comment.
 func StringToGoComment(in string) string {
+	if len(in) == 0 || len(strings.TrimSpace(in)) == 0 { // ignore empty comment
+		return ""
+	}
+
 	// Normalize newlines from Windows/Mac to Linux
 	in = strings.Replace(in, "\r\n", "\n", -1)
 	in = strings.Replace(in, "\r", "\n", -1)
